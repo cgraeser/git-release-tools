@@ -6,7 +6,7 @@ IGNORECASE="-i"
 BRANCH="releases/2.3"
 MASTER="master"
 TMPFILE=/tmp/release-cherry-pick.666.$$
-git checkout $BRANCH
+git checkout $BRANCH || exit 1
 
 if test -e prevent-cherry-picks; then
     PREVENTED=`cat prevent-cherry-picks | grep -v ^\# | grep -v "^$" | sed -e 's/^/^/g
