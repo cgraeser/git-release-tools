@@ -86,10 +86,10 @@ if test -n "$REVS" ; then
 		export IFS="$OIFS"
 		break
 		;;
-	    * )     echo "Dude, just enter A, N, or P, please."; break ;;
+	    * )     echo "Dude, just enter A, N, or P, please."; exit 1 ;;
 	esac
     done
 else
     echo "Nothing to cherry-pick..."
-    exit 1
+    exit 0
 fi
