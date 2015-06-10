@@ -1,12 +1,48 @@
 #!/bin/bash
 #set -x
 #set -e
+
+MASTER='master'
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 PATTERN='\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]'
 IGNORECASE="-i"
-BRANCH="releases/2.3"
-MASTER="master"
+LOGONLY=''
+
+for i in "$@"
+do
+case $i in
+    --master=*)
+    MASTER="${i#*=}"
+    shift # past argument=value
+    ;;
+    --branch=*)
+    BRANCH="${i#*=}"
+    shift # past argument=value
+    ;;
+    -a|--all)
+    PATTERN=".*"
+    shift # past argument=value
+    ;;
+    --pattern=*)
+    PATTERN="${i#*=}"
+    shift # past argument=value
+    ;;
+    -l|--log-only=*)
+    LOGONLY='yes'
+    shift # past argument=value
+    ;;
+    *)
+    echo Unknown option passed
+    exit 1
+            # unknown option
+    ;;
+esac
+done
+
 TMPFILE=/tmp/release-cherry-pick.666.$$
 git checkout $BRANCH || exit 1
+
+echo Checking for patches to cherry-pick in range $MASTER..$BRANCH
 
 if test -e prevent-cherry-picks; then
     PREVENTED=`cat prevent-cherry-picks | grep -v ^\# | grep -v "^$" | sed -e 's/^/^/g
@@ -24,11 +60,17 @@ if test -n "$PICKED"; then
 fi
 if test -n "$PREVENTED" ; then
     #echo "PREVENTED picks are $PREVENTED"
-    REVS=`git rev-list --grep="\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH |grep -v $PREVENTED`
+    REVS=`git rev-list --grep="$PATTERN" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH |grep -v $PREVENTED`
 else 
-    REVS=`git rev-list --grep="\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH`
+    REVS=`git rev-list --grep="$PATTERN" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH`
 fi
 if test -n "$REVS" ; then 
+    if test -n "$LOGONLY" ; then 
+        echo "The following commits can be cherry-picked:"
+        echo "$REVS"
+        exit 0
+    fi
+
     echo "The following commits will be cherry-picked automatically:"
     echo "$REVS"
     read -p "Shall we pick all the above cherries? [A(ll)/N(one)/P(ick individually)]" answer
@@ -38,9 +80,9 @@ if test -n "$REVS" ; then
 	    [aA]* )
 		
 		if test -n "$PREVENTED"; then
-		    git rev-list --grep="\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | grep -v $PREVENTED | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | grep -v $PREVENTED | xargs git cherry-pick -x -s
 		else
-		    git rev-list --grep="\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | xargs git cherry-pick -x -s
 		fi
 		break;;
 	    [nN]* )
