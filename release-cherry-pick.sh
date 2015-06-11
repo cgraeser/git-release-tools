@@ -4,7 +4,8 @@
 
 MASTER='master'
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
-PATTERN='\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]'
+TAGS='release,bugfix'
+PATTERN=''
 IGNORECASE="-i"
 LOGONLY=''
 LOGFORMAT='oneline'
@@ -26,7 +27,6 @@ case $i in
     ;;
     --tags=*)
     TAGS="${i#*=}"
-    PATTERN="\[.*`echo $TAGS | sed 's/,/\.\*\\\\]\\\\|\\\\[\.\*/g'`.*\]"
     shift # past argument=value
     ;;
     --pattern=*)
@@ -52,6 +52,10 @@ case $i in
     ;;
 esac
 done
+
+if test -z "$PATTERN"; then
+    PATTERN="\[.*`echo $TAGS | sed 's/,/\.\*\\\\]\\\\|\\\\[\.\*/g'`.*\]"
+fi
 
 TMPFILE=/tmp/release-cherry-pick.666.$$
 git checkout $BRANCH || exit 1
