@@ -7,6 +7,7 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD)
 PATTERN='\[.*[rR]elease.*\]\|\[.*[bB]ug[fF]ix.*\]'
 IGNORECASE="-i"
 LOGONLY=''
+LOGFORMAT='oneline'
 
 for i in "$@"
 do
@@ -23,12 +24,25 @@ case $i in
     PATTERN=".*"
     shift # past argument=value
     ;;
+    --tags=*)
+    TAGS="${i#*=}"
+    PATTERN="\[.*`echo $TAGS | sed 's/,/\.\*\\\\]\\\\|\\\\[\.\*/g'`.*\]"
+    shift # past argument=value
+    ;;
     --pattern=*)
     PATTERN="${i#*=}"
     shift # past argument=value
     ;;
+    --format=*|--pretty=*)
+    LOGFORMAT="${i#*=}"
+    shift # past argument=value
+    ;;
     -l|--log-only=*)
     LOGONLY='yes'
+    shift # past argument=value
+    ;;
+    --no-ignore-case)
+    IGNORECASE=''
     shift # past argument=value
     ;;
     *)
@@ -60,19 +74,20 @@ if test -n "$PICKED"; then
 fi
 if test -n "$PREVENTED" ; then
     #echo "PREVENTED picks are $PREVENTED"
-    REVS=`git rev-list --grep="$PATTERN" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH |grep -v $PREVENTED`
+    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH |grep -v $PREVENTED`
 else 
-    REVS=`git rev-list --grep="$PATTERN" --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH`
+    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH`
 fi
 if test -n "$REVS" ; then 
+    echo "The following commits can be cherry-picked:"
+    echo "$REVS" | while read i; do
+        R=`echo $i | sed "s/^\([0-9a-f]\+\)\s\+.*$/\1/"`
+        git log --pretty=$LOGFORMAT $R^..$R
+    done
     if test -n "$LOGONLY" ; then 
-        echo "The following commits can be cherry-picked:"
-        echo "$REVS"
         exit 0
     fi
 
-    echo "The following commits will be cherry-picked automatically:"
-    echo "$REVS"
     read -p "Shall we pick all the above cherries? [A(ll)/N(one)/P(ick individually)]" answer
     while true
     do
@@ -80,9 +95,9 @@ if test -n "$REVS" ; then
 	    [aA]* )
 		
 		if test -n "$PREVENTED"; then
-		    git rev-list --grep="$PATTERN" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | grep -v $PREVENTED | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | grep -v $PREVENTED | xargs git cherry-pick -x -s
 		else
-		    git rev-list --grep="$PATTERN" --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | xargs git cherry-pick -x -s
 		fi
 		break;;
 	    [nN]* )
@@ -91,7 +106,6 @@ if test -n "$REVS" ; then
 	    [pP]* )
 		OIFS="$IFS"
 		NIFS=$'\t\n'
-		echo $REVS > /tmp/test.txt
 		export IFS=$NIFS
 		for i in $REVS; do
 		    export IFS="$OIFS"
