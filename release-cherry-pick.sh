@@ -2,23 +2,75 @@
 #set -x
 #set -e
 
-MASTER='master'
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
+FROM='master'
+TO=$(git rev-parse --abbrev-ref HEAD)
 TAGS='release,bugfix'
 PATTERN=''
 IGNORECASE="-i"
 LOGONLY=''
 LOGFORMAT='oneline'
 
+USAGE="\
+USAGE
+        release-cherry-pick.sh  [--from=F] [--to=T]
+                                [-l|--log-only]
+                                [--format=FORMAT]
+                                [--tags=tag1,tag2,...,tagn]
+                                [--pattern=P]
+                                [-a|--all]
+                                [--no-ignore-case]
+                                [-h|--help]
+
+OPTIONS
+
+        --to=T
+            Sets the target branch where cherry-picked commits go to to T.
+            The default for T is the current branch.
+
+        --from=F
+            Sets the origin branch where cherry-picked commits come from to F
+            The default for M is 'master'
+
+        -l, --log-only
+            Will only print out a log of the matchinh commits and
+            not try to do actual cherry-picking.
+
+        --format=FORMAT
+            Will set the log format to FORMAT. This can be anything that is
+            accepted by 'git log --format='.
+            The default for FORMAT is 'oneline'.
+
+        --tags=tag1,tag2,...,tagn
+            Will only look for commits that contain any of the given tags.
+            E.g. setting '--tags=foo,bar' will match commits containing
+            '[foo,John]', '[bar][foobar]', and '[Doo,foo]'.
+            Tags are by default matches case-insensitive (cf --no-ignore-case below).
+            The default is '--tags=release,bugfix'.
+
+        --pattern=P
+            Will only look for commits whose first line matches the
+            given pattern P. This will override a given '--tags' option.
+            Patterns are by default matches case-insensitive (cf --no-ignore-case below).
+
+        -a, --all
+            Same as '--pattern=\".*\"'.
+
+        --no-ignore-case
+            Make tag and pattern matchinh case sensitive.
+
+        -h, --h
+            Show this help text.
+"
+
 for i in "$@"
 do
 case $i in
-    --master=*)
-    MASTER="${i#*=}"
+    --from=*)
+    FROM="${i#*=}"
     shift # past argument=value
     ;;
-    --branch=*)
-    BRANCH="${i#*=}"
+    --to=*)
+    TO="${i#*=}"
     shift # past argument=value
     ;;
     -a|--all)
@@ -41,12 +93,17 @@ case $i in
     LOGONLY='yes'
     shift # past argument=value
     ;;
+    -h|--help)
+    echo "$USAGE"
+    exit 0
+    ;;
     --no-ignore-case)
     IGNORECASE=''
     shift # past argument=value
     ;;
     *)
-    echo Unknown option passed
+    echo Unknown option passed.
+    echo The \'release-cherry-pick.sh --help\' for usage directions.
     exit 1
             # unknown option
     ;;
@@ -58,9 +115,9 @@ if test -z "$PATTERN"; then
 fi
 
 TMPFILE=/tmp/release-cherry-pick.666.$$
-git checkout $BRANCH || exit 1
+git checkout $TO || exit 1
 
-echo Checking for patches to cherry-pick in range $MASTER..$BRANCH
+echo Checking for patches to cherry-pick in range $FROM..$TO
 
 if test -e prevent-cherry-picks; then
     PREVENTED=`cat prevent-cherry-picks | grep -v ^\# | grep -v "^$" | sed -e 's/^/^/g
@@ -78,9 +135,9 @@ if test -n "$PICKED"; then
 fi
 if test -n "$PREVENTED" ; then
     #echo "PREVENTED picks are $PREVENTED"
-    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH |grep -v $PREVENTED`
+    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $FROM...$TO |grep -v $PREVENTED`
 else 
-    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $MASTER...$BRANCH`
+    REVS=`git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --pretty=oneline --reverse --left-only --no-merges $FROM...$TO`
 fi
 if test -n "$REVS" ; then 
     echo "The following commits can be cherry-picked:"
@@ -99,9 +156,9 @@ if test -n "$REVS" ; then
 	    [aA]* )
 		
 		if test -n "$PREVENTED"; then
-		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | grep -v $PREVENTED | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $FROM...$TO | grep -v $PREVENTED | xargs git cherry-pick -x -s
 		else
-		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $MASTER...$BRANCH | xargs git cherry-pick -x -s
+		    git rev-list --grep="$PATTERN" $IGNORECASE --cherry-pick --reverse --left-only --no-merges $FROM...$TO | xargs git cherry-pick -x -s
 		fi
 		break;;
 	    [nN]* )
